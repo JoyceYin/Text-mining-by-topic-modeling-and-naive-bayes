@@ -1,0 +1,175 @@
+---
+title: "Chinese Topic modelling"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)         # do operations on table or dataframe (can do multiple operations using "%>%")
+library(ggplot2)       # draw pictures 
+library(tidytext)      # tidying model objects, extract topic-related probabilities
+library(tidyr)         # tidying model object
+library(stm)
+library(quanteda)
+library(spacyr)
+# spacy_install(lang_models = "zh_core_web_sm")
+spacy_finalize()
+spacy_initialize(model = "zh_core_web_sm")
+Sys.setlocale(category="LC_ALL", locale = "Chinese")
+```
+
+
+
+##### load data
+```{r}
+
+zh_df <- read.csv('whole_dataset_zh_new.csv')
+zh_df <- zh_df[,1:2]
+nrow(zh_df)
+head(zh_df)
+
+```
+
+## tokenize
+```{r}
+cn_token_df <- NULL
+for (i in (1:nrow(zh_df))){
+  print(i)
+  id <- zh_df[i,1]
+  txt <- zh_df[i,2]
+  txt <- gsub("[a-zA-Z<>/@：)(-= '【•]"," ", txt) 
+  df <- data.frame(strsplit(txt, ' '))  %>% mutate('ID' = id, .before = 1)
+  names(df) <- c('ID','token')
+  cn_token_df <- rbind(cn_token_df,df)
+}
+head(cn_token_df)
+cn_token_df
+cn_token_df <- na.omit(cn_token_df)
+nrow(cn_token_df)
+# write.table(cn_token_df,"zh_tokens.csv",row.names=FALSE,col.names=TRUE,sep=",")
+# t <- read.csv('zh_tokens.csv')
+```
+
+
+```{r}
+# remove the stop word
+cn_sw = c("的", "在", "和", "也", "是", "了", "一", "不" , "我" , "你" , "还" , "我们" ,
+          "NA", "在", "了", "和", "将" , "但", "中" , "与" , "这" , "而" , "也" , "可能",
+          "为", "有", "上", "并" , "其", "已" , "就" , "会" , "他" , "以" , "都", "这些",
+          "更", "到", "他们" , "被", "还" , "让" , "没有" , "她" , "她们"  , "你们", "对",
+          "人", "一个", "个", "辆", "它", "这个", "大", "最", "尚", "使得", "两", "超大",
+          "时", "从", "称", "妈", "自己", "略", "最低", "案", "门", "该", "月", "人", "名",
+          "段", "下", "这是", "呢", "既", "多", "年", "后", "能", "份", "亿", "等", "日",
+          "要", "来", "地", "种", "天", "夜", "场", "位", "越来越", "很", "內", "做", "至",
+          "往往", "一家", "三", "却", "越","\" ")
+
+cn_token_df <- cn_token_df %>%
+  filter(!(token %in% c(cn_sw,stopwords(language = "zh", source = "misc")))) 
+head(cn_token_df)
+
+```
+
+##### Implement topic modelling
+```{r}
+cn_dfm <- cn_token_df %>% 
+      count(ID,token,sort=TRUE) %>%
+      cast_dfm(ID,token,n)
+
+cn_topic_model_5 <- stm(cn_dfm,K = 5,init.type = "Spectral");
+cn_topic_model_10 <- stm(cn_dfm,K = 10,init.type = "Spectral");
+cn_topic_model_15 <- stm(cn_dfm,K = 15,init.type = "Spectral");
+cn_topic_model_20 <- stm(cn_dfm,K = 20,init.type = "Spectral");
+
+summary(cn_topic_model_5)
+summary(cn_topic_model_10)
+summary(cn_topic_model_15)
+summary(cn_topic_model_20)
+```
+
+##### validation
+```{r}
+cn_pro1 <- tidy(cn_topic_model_5)
+cn_pro1 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 5")+
+  facet_wrap(~topic,scales = 'free') +
+  theme(text=element_text(family="STKaiti",size=14)) +
+  coord_flip()
+
+cn_pro2 <- tidy(cn_topic_model_10)
+cn_pro2 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 10")+
+  facet_wrap(~topic,scales = 'free') +
+  theme(text=element_text(family="STKaiti",size=14)) +
+  coord_flip()
+
+
+cn_pro3 <- tidy(cn_topic_model_15)
+cn_pro3 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 15")+
+  facet_wrap(~topic,scales = 'free') +
+  theme(text=element_text(family="STKaiti",size=14)) +
+  coord_flip()
+
+
+cn_pro4 <- tidy(cn_topic_model_20)
+cn_pro4 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 20")+
+  facet_wrap(~topic,scales = 'free') +
+  theme(text=element_text(family="STKaiti",size=14)) +
+  coord_flip()
+```
+
+
+```{r}
+cn_td_gamma_5 <- tidy(cn_topic_model_5,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(cn_td_gamma_5,aes(gamma,fill=as.factor(topic))) +
+  geom_histogram(show.legend = FALSE) +
+  facet_wrap(~topic,ncol = 5)
+
+cn_td_gamma_10 <- tidy(cn_topic_model_10,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(cn_td_gamma_10,aes(gamma,fill=as.factor(topic))) +
+  geom_histogram(show.legend = FALSE) +
+  facet_wrap(~topic,ncol = 5)
+
+cn_td_gamma_15 <- tidy(cn_topic_model_15,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(cn_td_gamma_15,aes(gamma,fill=as.factor(topic))) +
+  geom_histogram(show.legend = FALSE) +
+  labs(title = "Cluster number K = 15")+
+  facet_wrap(~topic,ncol = 5)
+
+cn_td_gamma_20 <- tidy(cn_topic_model_20,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(cn_td_gamma_20,aes(gamma,fill=as.factor(topic))) +
+  geom_histogram(show.legend = FALSE) +
+  facet_wrap(~topic,ncol = 5)
+```

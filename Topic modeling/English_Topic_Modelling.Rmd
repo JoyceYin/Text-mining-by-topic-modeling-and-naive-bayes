@@ -1,0 +1,171 @@
+---
+title: "English Topic Modelling"
+output: html_notebook
+---
+```{r}
+library(tm)
+library(dplyr)         # do operations on table or dataframe (can do multiple operations using "%>%")
+library(ggplot2)       # draw pictures 
+library(tidytext)      # tidying model objects, extract topic-related probabilities
+library(tidyr)         # tidying model object
+library(stm)
+library(quanteda)
+library(spacyr)
+# spacy_install(lang_models = "en_core_web_sm")
+spacy_initialize(model = "en_core_web_sm")
+```
+
+##### load data
+```{r}
+en_df <- read.csv("./dataset/whole_dataset_new_upgrade.csv",header = TRUE)
+head(en_df)
+```
+
+
+
+##### tokenize
+```{r}
+token_df <- NULL
+for (i in (1:nrow(en_df))){
+  print(i)
+  id = en_df[i,1]
+  df = data.frame(strsplit(en_df[i,2],' ')) %>% mutate('ID' = id, .before = 1)
+  names(df) <- c('ID','token')
+  token_df = rbind(token_df,df)
+}
+
+head(token_df)
+nrow(token_df)
+
+# remove stop word
+en_sw = c(stopwords('english'),'cent','max','ve','bn','aa','a.g','be','go','Mr','say','get','have','use','do','talk')
+token_df <- token_df %>%
+            filter(!(token %in% en_sw))
+head(token_df)
+```
+
+
+##### Implement topic modelling
+```{r}
+dfm <- token_df %>% 
+      count(ID,token,sort=TRUE) %>%
+      cast_dfm(ID,token,n)
+
+topic_model_5 <- stm(dfm,K = 5,init.type = "Spectral");
+topic_model_10 <- stm(dfm,K = 10,init.type = "Spectral");
+topic_model_15 <- stm(dfm,K = 15,init.type = "Spectral");
+topic_model_20 <- stm(dfm,K = 20,init.type = "Spectral");
+
+summary(topic_model_5)
+summary(topic_model_10)
+summary(topic_model_15)
+summary(topic_model_20)
+```
+
+
+##### validation
+```{r}
+pro1 <- tidy(topic_model_5)
+pro1 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 5")+
+  facet_wrap(~topic,scales = 'free') +
+  coord_flip()
+
+pro2 <- tidy(topic_model_10)
+pro2 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 10")+
+  facet_wrap(~topic,scales = 'free') +
+  coord_flip()
+
+
+pro3 <- tidy(topic_model_15)
+pro3 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 15")+
+  facet_wrap(~topic,scales = 'free') +
+  coord_flip()
+
+
+pro4 <- tidy(topic_model_20)
+pro4 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 20")+
+  facet_wrap(~topic,scales = 'free') +
+  coord_flip()
+```
+
+
+```{r}
+td_gamma_5 <- tidy(topic_model_5,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(td_gamma_5,aes(gamma,fill=as.factor(topic))) +
+geom_histogram(show.legend = FALSE) +
+facet_wrap(~topic,ncol = 5)
+
+td_gamma_10 <- tidy(topic_model_10,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(td_gamma_10,aes(gamma,fill=as.factor(topic))) +
+geom_histogram(show.legend = FALSE) +
+facet_wrap(~topic,ncol = 5)
+
+td_gamma_15 <- tidy(topic_model_15,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(td_gamma_15,aes(gamma,fill=as.factor(topic))) +
+geom_histogram(show.legend = FALSE) +
+labs(title = "Cluster number K = 15")+
+facet_wrap(~topic,ncol = 5)
+
+td_gamma_20 <- tidy(topic_model_20,matrix = "gamma",
+              document_names = rownames(dfm))
+
+ggplot(td_gamma_20,aes(gamma,fill=as.factor(topic))) +
+geom_histogram(show.legend = FALSE) +
+facet_wrap(~topic,ncol = 5)
+```
+
+```{r}
+
+topic_model_8 <- stm(dfm,K = 8,init.type = "Spectral")
+pro5 <- tidy(topic_model_8)
+pro5 %>%
+  group_by(topic) %>%
+  top_n(10) %>%
+  ungroup() %>%
+  mutate(term = reorder(term,beta)) %>%
+  ggplot(aes(term,beta,fill=topic)) +
+  geom_col(show.legend = FALSE) +
+  labs(title = "Cluster number K = 8")+
+  facet_wrap(~topic,scales = 'free') +
+  coord_flip()
+```
+
+
+
+
+
+
