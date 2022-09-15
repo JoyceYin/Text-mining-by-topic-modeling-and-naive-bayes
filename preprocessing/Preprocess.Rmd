@@ -1,0 +1,181 @@
+---
+title: "Group Preprocessing"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library('NLP')
+library('tm')
+library('openNLP')
+library('ngram')
+library('spacyr')
+
+library('jiebaR')
+library('jiebaRD')
+
+library('dplyr')
+library('knitr')
+library('markdown')
+library('mongolite')
+library('tif')
+
+Sys.setlocale(category="LC_ALL",locale="chinese")
+
+getwd()
+```
+```{r}
+length(list.dirs('./dataset/.'))
+```
+
+
+```{r}
+id_en = c();
+content_en = c();
+
+for (loc in 1:(length(list.dirs('./dataset/'))-1) ){
+  flush.console()
+  print(loc)
+  
+  num = as.character(loc)
+  file_add = paste0('./dataset/ft',num)
+  file = list.files(file_add)
+  
+  for (i in file){
+    path = paste0(file_add, '/')
+    path = paste0(path, i)
+    text = readLines(path, encoding ="UTF-8");
+    text = strsplit(text, split = ";")[[1]];
+    id = text[1];
+    #date = text[2];
+    content = text[6:7];
+    eng = gsub("<a.*?>.*?</a>","", content[1]);
+    eng = gsub("<b>","",eng);
+    eng = gsub("</b>","",eng);
+    eng = gsub("</strong>","",eng);
+    eng = gsub("<strong>","",eng);
+    eng = gsub("[^a-zA-Z\\'@ ]", "", eng)
+    id_en = c(id_en, id);
+    content_en = c(content_en, eng);
+  }
+}
+
+df <- data.frame(doc_id = id_en, text = content_en, stringsAsFactors = FALSE)
+df = tif_as_corpus_df(df)
+dim(df)
+```
+
+```{r}
+spacy_initialize(model = "en_core_web_sm")
+```
+
+```{r}
+clean_list = c();
+start = 1;
+for (i in 1:30){
+  flush.console();
+  end = as.integer((dim(df)[1]/30)*i);
+  print(start)
+  print(end)
+  df_small = df[start:end,]
+  en_parsed = spacy_parse( df_small , dependency = TRUE);
+  #get rid of unused word /stopwords
+  en_parsed_stp = en_parsed %>% filter(pos!='PUNCT') %>% filter(pos!='PART') %>% filter(pos!='DET') %>% filter(pos!='ADP') %>% filter(pos!='NUM') %>% filter(pos !='CCONJ') %>% filter(pos !='PRON') %>% filter(pos!='SPACE') %>% filter(pos !='AUX') %>% filter(pos !='SYM') %>% filter(pos !='SCONJ') %>% filter(entity !='DATE_I') %>% filter(token !='be') %>% filter(token !='do') %>% filter(token !='say') %>% filter(dep_rel != 'advmod') %>% filter(dep_rel !=	'npadvmod') %>% filter(dep_rel !=	'prep')
+  en_parsed_stp
+  
+  for (i in start:end){
+    en_parsed_piece = en_parsed_stp %>% filter(doc_id == id_en[i]);
+    clean = paste(en_parsed_piece$lemma, collapse = " ");   #lemma fits lowercase requirements
+    clean_list = c(clean_list, clean);
+  }
+  
+  start = end+1;
+}
+
+
+df_corp <- data.frame(doc_id = id_en, text = clean_list, stringsAsFactors = FALSE)
+df_corp
+
+spacy_finalize()
+write.table(df_corp,"whole_dataset_new_upgrade.csv",row.names=FALSE,col.names=TRUE,sep=",")
+```
+
+
+
+Chinese character
+```{r}
+Sys.setlocale(category="LC_ALL",locale="chinese")
+#source('ExtractTermZH.r')
+spacy_initialize(model="zh_core_web_sm")
+```
+```{r}
+id_zh = c();
+content_zh = c();
+
+for (loc in 1:(length(list.dirs('./dataset/'))-1)){
+  flush.console();
+  print(loc);
+  num = as.character(loc);
+  file_add = paste0('./dataset/ft',num)
+  file = list.files(file_add)
+  
+  for (i in file){
+    path = paste0(file_add, '/')
+    path = paste0(path, i)
+    text = readLines(path, encoding ="UTF-8");
+    whole_text = strsplit(text, split = ";")[[1]];
+    content_text = whole_text[6:7];
+    id_zh = c(id_zh, whole_text[1]);
+    content_zh = c(content_zh, content_text[2]);
+  }
+}
+
+df_zh <- data.frame(doc_id = id_zh, text = content_zh, stringsAsFactors = FALSE)
+df_zh = tif_as_corpus_df(df_zh)
+dim(df_zh)
+```
+
+```{r}
+list_zh = c();
+start = 1;
+
+for (i in 1:30){
+  flush.console();
+  end = as.integer((dim(df_zh)[1]/30)*i);
+  print(start)
+  print(end)
+  df_zh_small = df_zh[start:end,]
+  #lemmatization may not work in Chinese
+  zh_parsed <- spacy_parse(df_zh_small, lemma=FALSE, dependency=TRUE); 
+  
+  zh_parsed_clean = zh_parsed %>% filter(pos !='PART') %>% filter(dep_rel != 'nummod') %>% filter(pos != 'NUM') %>% filter(pos !='PUNCT') %>% filter(pos !='ADP') %>% filter(dep_rel != 'aux:modal') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != '??????') %>% filter(token != '??????') %>% filter(token != '??????') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != '??????') %>% filter(token != '???') %>% filter(token != '???') %>% filter(token != ')') %>% filter(dep_rel != 'nmod:tmod') %>% filter(dep_rel !='advmod:rcomp') %>% filter(dep_rel != 'advmod') %>% filter(pos != 'CCONJ') %>% filter(dep_rel != 'cop') %>% filter(dep_rel != 'det') %>% filter(entity != 'DATE_I') %>% filter(dep_rel != 'ROOT') %>% filter(pos != 'DET') %>% filter(pos != 'X') %>% filter(entity != 'DATE_B') %>% filter(dep_rel != 'xcomp') %>% filter(dep_rel != 'case')
+  
+  #get rid of token containing letters
+  zh_parsed_clean = zh_parsed_clean %>% filter(grepl("[a-zA-Z0-9 ]", zh_parsed_clean$token) == 'FALSE')
+  #print(zh_parsed_clean)
+  
+  for (i in start:end){
+    #print(i)
+    zh_parsed_piece = zh_parsed_clean %>% filter(doc_id == id_zh[i]);
+    zh_clean = paste(zh_parsed_piece$token, collapse = " ");   #chinese have no lemma
+    #print(zh_clean)
+    list_zh = c(list_zh, zh_clean);
+    #print(length(list_zh))
+  }
+  start = end+1;
+}
+
+zh_parsed
+
+df_corp_zh <- data.frame(doc_id = id_zh, text = list_zh, stringsAsFactors = FALSE)
+df_corp_zh
+
+write.table(df_corp_zh,"whole_dataset_zh_new.csv",row.names=FALSE,col.names=TRUE,sep=",")
+```
+
+
+
+--------Above sumbitted as pre-processor
+
+
